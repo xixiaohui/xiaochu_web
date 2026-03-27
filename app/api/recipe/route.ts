@@ -1,5 +1,44 @@
 import cloudbase from "@cloudbase/js-sdk";
 
+/**
+ * 构建用户提示词
+ * @param ingredients - 食材列表
+ * @param cookTime - 烹饪时间（分钟）
+ * @param difficulty - 难度等级
+ * @param extraRequirements - 附加要求
+ * @returns 用户提示词
+ */
+const buildUserPrompt = (
+  ingredients: string[] | string,
+  cookTime: number,
+  difficulty: "easy" | "medium" | "hard" | "简单" | "中等" | "困难",
+  extraRequirements?: string,
+): string => {
+  const ingredientsStr = Array.isArray(ingredients)
+    ? ingredients.join("、")
+    : String(ingredients);
+
+  const difficultyMap: Record<typeof difficulty, string> = {
+    easy: "简单",
+    medium: "中等",
+    hard: "困难",
+    简单: "简单",
+    中等: "中等",
+    困难: "困难",
+  };
+
+  const difficultyText = difficultyMap[difficulty] || "简单";
+
+  return `我有以下食材：${ingredientsStr}
+
+请帮我生成一道菜的食谱。
+- 烹饪时间要求：${cookTime}分钟以内
+- 难度要求：${difficultyText}
+- 其他要求：${extraRequirements || "无"}
+
+请直接输出 JSON 格式的食谱，不要有任何其他文字说明。`;
+};
+
 export async function POST(req: Request) {
   const { input } = await req.json();
 
@@ -40,6 +79,7 @@ export async function POST(req: Request) {
 5. 步骤简洁清晰，适合家庭烹饪
 6. 仅输出一个可被 JSON.parse 直接解析的 JSON 对象，不要输出任何解释、前缀、后缀或 Markdown 代码块`;
   };
+
   // // 用户的自然语言输入，如'帮我写一首赞美玉龙雪山的诗'
   // const userInput = "帮我写一首赞美玉龙雪山的诗";
 
@@ -50,7 +90,15 @@ export async function POST(req: Request) {
       model: "hunyuan-turbos-latest",
       messages: [
         { role: "system", content: buildSystemPrompt() },
-        { role: "user", content: input },
+        {
+          role: "user",
+          content: buildUserPrompt(
+            input.ingredients,
+            input.cookTime,
+            input.difficulty,
+            input.extraRequirements,
+          ),
+        },
       ],
     });
 
