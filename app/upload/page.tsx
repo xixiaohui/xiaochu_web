@@ -56,6 +56,8 @@ export default function Page() {
   const [selectedRowId, setSelectedRowId] = useState<string>("");
   const [extraRequirements, setExtraRequirements] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
   const [streamText, setStreamText] = useState("");
   const [recipe, setRecipe] = useState<RecipeResult | null>(null);
   const [error, setError] = useState("");
@@ -79,6 +81,56 @@ export default function Page() {
 
   const selectedDish = dishRows.find((item) => item.rowId === selectedRowId);
 
+  const saveRecipeToDB = async (
+    recipeData: RecipeResult,
+    dish: DishRow,
+    extraReq: string
+  ) => {
+    setSaveLoading(true);
+    setSaveStatus("");
+
+    try {
+      const res = await fetch("/api/recipes-web/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipe: recipeData,
+          source: {
+            cuisineId: dish.cuisineId,
+            cuisineName: dish.cuisineName,
+            cuisineEmoji: dish.cuisineEmoji,
+            dishName: dish.dishName,
+            dishDesc: dish.dishDesc,
+            ingredients: dish.ingredients,
+            cookTime: dish.cookTime,
+            difficulty: dish.difficulty,
+            extraRequirements: extraReq,
+          },
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.message || "保存失败");
+      }
+
+      if (result.skipped) {
+        setSaveStatus("⏭ 已存在相同菜谱，已跳过保存");
+      } else {
+        setSaveStatus("✅ 已成功保存到 recipes_web");
+      }
+    } catch (err) {
+      setSaveStatus(
+        `❌ 保存失败：${err instanceof Error ? err.message : "未知错误"}`
+      );
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedDish) {
       setError("请先在表格中选择一道菜。");
@@ -89,6 +141,7 @@ export default function Page() {
     setError("");
     setStreamText("");
     setRecipe(null);
+    setSaveStatus("");
 
     try {
       const res = await fetch("/api/recipe", {
@@ -127,12 +180,17 @@ export default function Page() {
         setStreamText(fullText);
       }
 
+      let parsed: RecipeResult;
       try {
-        const parsed = JSON.parse(fullText);
-        setRecipe(parsed);
+        parsed = JSON.parse(fullText);
       } catch {
-        setError("接口已返回内容，但不是合法 JSON，请检查模型输出。");
+        throw new Error("接口已返回内容，但不是合法 JSON，请检查模型输出");
       }
+
+      setRecipe(parsed);
+
+      // 自动保存到云数据库 recipes_web
+      await saveRecipeToDB(parsed, selectedDish, extraRequirements);
     } catch (err) {
       setError(err instanceof Error ? err.message : "请求失败");
     } finally {
@@ -145,8 +203,8 @@ export default function Page() {
       <div className="container">
         <h1 className="title">中餐菜谱生成器</h1>
         <p className="subtitle">
-          先在下方表格中选择一道菜，再把它的食材、时间、难度提交到你的 AI
-          食谱接口生成结果。
+          选择一道菜，调用 Web API 生成菜谱，并自动保存到云数据库
+          recipes_web。
         </p>
 
         <section className="card">
@@ -244,12 +302,13 @@ export default function Page() {
           <button
             className="submitBtn"
             onClick={handleSubmit}
-            disabled={loading || !selectedDish}
+            disabled={loading || saveLoading || !selectedDish}
           >
-            {loading ? "生成中..." : "提交到 API 生成食谱"}
+            {loading ? "生成中..." : saveLoading ? "保存中..." : "生成并保存到 recipes_web"}
           </button>
 
           {error && <div className="errorBox">{error}</div>}
+          {saveStatus && <div className="saveBox">{saveStatus}</div>}
         </section>
 
         <section className="card">
@@ -402,7 +461,7 @@ export default function Page() {
         .table {
           width: 100%;
           border-collapse: collapse;
-          background: #4b1ca1;
+          background: #1c0344;
         }
 
         .table th,
@@ -422,12 +481,12 @@ export default function Page() {
         }
 
         .table tbody tr:hover {
-          background: #0b67f0;
+          background: #0066ff;
           cursor: pointer;
         }
 
         .selectedRow {
-          background: #046ef0 !important;
+          background: #edf5ff !important;
         }
 
         .cuisineCell {
@@ -441,7 +500,7 @@ export default function Page() {
           display: grid;
           gap: 8px;
           padding: 14px;
-          background: #242525;
+          background: #f8fafc;
           border: 1px solid #e5e7eb;
           border-radius: 12px;
           margin-bottom: 16px;
@@ -501,6 +560,15 @@ export default function Page() {
           border-radius: 10px;
         }
 
+        .saveBox {
+          margin-top: 14px;
+          background: #f6ffed;
+          color: #389e0d;
+          border: 1px solid #b7eb8f;
+          padding: 12px;
+          border-radius: 10px;
+        }
+
         .emptyTip {
           color: #667085;
           background: #f8fafc;
@@ -550,7 +618,7 @@ export default function Page() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
-          background: #0c79e6;
+          background: #f8fafc;
           padding: 14px;
           border-radius: 12px;
           border: 1px solid #e5e7eb;

@@ -88,6 +88,7 @@ export async function POST(req: Request) {
     .createModel("hunyuan-exp")
     .streamText({
       model: "hunyuan-turbos-latest",
+      // model:"hunyuan-t1-latest",
       messages: [
         { role: "system", content: buildSystemPrompt() },
         {
