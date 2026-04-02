@@ -9,6 +9,7 @@ import cloudbase from "@cloudbase/js-sdk";
  * @returns 用户提示词
  */
 const buildUserPrompt = (
+  dishName:string,
   ingredients: string[] | string,
   cookTime: number,
   difficulty: "easy" | "medium" | "hard" | "简单" | "中等" | "困难",
@@ -31,7 +32,7 @@ const buildUserPrompt = (
 
   return `我有以下食材：${ingredientsStr}
 
-请帮我生成一道菜的食谱。
+请帮我生成${dishName}的食谱。
 - 烹饪时间要求：${cookTime}分钟以内
 - 难度要求：${difficultyText}
 - 其他要求：${extraRequirements || "无"}
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: buildUserPrompt(
+            input.dishName,
             input.ingredients,
             input.cookTime,
             input.difficulty,

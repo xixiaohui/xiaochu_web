@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import cloudbase from "@cloudbase/js-sdk";
+
+import { app } from "@/lib/cloudbase";
+
 
 const VERSION = "web-1.0.0";
 
@@ -54,11 +56,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const app = cloudbase.init({
-      env: process.env.VITE_CLOUDBASE_ENV_ID || "",
-      region: process.env.VITE_CLOUDBASE_REGION || "",
-      accessKey: process.env.VITE_CLOUDBASE_ACCESS_KEY || "",
-    });
+   
 
     const db = app.database();
     const collection = db.collection("recipes_web");
@@ -87,8 +85,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const now =
-      typeof db.serverDate === "function" ? db.serverDate() : new Date();
+    const now = new Date();
 
     const record = {
       ...recipe,
@@ -122,9 +119,12 @@ export async function POST(req: Request) {
 
     // 注意：不同 cloudbase SDK 版本 add 参数可能略有区别
     // 如果这里报错，可改成 collection.add(record)
-    const addRes = await collection.add({ data: record } as any);
+    
+    const addRes = await collection.add(record as any);
 
-    return Response.json({
+    console.log(`新增成功! id: ${addRes.id}`);
+
+    return Response.json({  
       success: true,
       skipped: false,
       id: addRes?.id || null,
