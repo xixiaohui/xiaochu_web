@@ -1,5 +1,7 @@
 "use client";
-
+/**
+ * 可以用，没有判断菜是否在云端数据库
+ */
 import { useMemo, useState, useEffect, useRef } from "react";
 import { CUISINES, NORMALIZED_CUISINES } from "@/data/cuisines";
 
@@ -45,7 +47,7 @@ type DishRow = {
 
 type ProcessingRecord = {
   rowId: string;
-  status: "pending" | "processing" | "success" | "error" | "skipped";
+  status: "pending" | "processing" | "success" | "error";
   message: string;
 };
 
@@ -72,7 +74,6 @@ export default function Page() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [processingRecords, setProcessingRecords] = useState<ProcessingRecord[]>([]);
   const [processedCount, setProcessedCount] = useState(0);
-  const [skippedCount, setSkippedCount] = useState(0);
   const isProcessingRef = useRef(false);
 
   const dishRows = useMemo<DishRow[]>(() => {
@@ -96,7 +97,7 @@ export default function Page() {
 
   const updateProcessingRecord = (
     rowId: string,
-    status: "pending" | "processing" | "success" | "error" | "skipped",
+    status: "pending" | "processing" | "success" | "error",
     message: string
   ) => {
     setProcessingRecords((prev) => {
@@ -108,28 +109,6 @@ export default function Page() {
       }
       return [...prev, { rowId, status, message }];
     });
-  };
-
-  // 检查菜谱是否已存在于数据库
-  const checkRecipeExists = async (dish: DishRow): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/recipes-web/check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          dishName: dish.dishName,
-          cuisineName: dish.cuisineName,
-        }),
-      });
-
-      const result = await res.json();
-      return result.exists || false;
-    } catch (err) {
-      console.error("检查菜谱是否存在出错：", err);
-      return false;
-    }
   };
 
   const saveRecipeToDB = async (
@@ -232,31 +211,16 @@ export default function Page() {
     const dish = dishRows[index];
     
     try {
-      updateProcessingRecord(dish.rowId, "processing", "检查数据库中...");
+      updateProcessingRecord(dish.rowId, "processing", "生成中...");
       setSelectedRowId(dish.rowId);
       setRecipe(null);
       setStreamText("");
 
-      // 第一步：检查菜谱是否已存在
-      const exists = await checkRecipeExists(dish);
-      
-      if (exists) {
-        updateProcessingRecord(dish.rowId, "skipped", "⏭ 菜谱已存在，已跳过");
-        setSkippedCount((prev) => prev + 1);
-
-        // 延迟后处理下一个菜品
-        setTimeout(() => {
-          processNextDish(index + 1);
-        }, 500);
-        return;
-      }
-
-      // 第二步：菜谱不存在，生成菜谱
-      updateProcessingRecord(dish.rowId, "processing", "生成菜谱中...");
+      // 生成菜谱
       const generatedRecipe = await generateRecipeForDish(dish);
       setRecipe(generatedRecipe);
 
-      // 第三步：保存到数据库
+      // 保存到数据库
       updateProcessingRecord(dish.rowId, "processing", "保存中...");
       const saveMsg = await saveRecipeToDB(generatedRecipe, dish, extraRequirements);
 
@@ -284,7 +248,6 @@ export default function Page() {
       isProcessingRef.current = true;
       setCurrentIndex(0);
       setProcessedCount(0);
-      setSkippedCount(0);
       setProcessingRecords([]);
       setError("");
       processNextDish(0);
@@ -316,14 +279,6 @@ export default function Page() {
     setRecipe(null);
 
     try {
-      // 检查菜谱是否已存在
-      const exists = await checkRecipeExists(selectedDish);
-      if (exists) {
-        setError("⏭ 该菜谱已存在于数据库中，无需重复生成");
-        setLoading(false);
-        return;
-      }
-
       const generatedRecipe = await generateRecipeForDish(selectedDish);
       setRecipe(generatedRecipe);
 
@@ -346,7 +301,7 @@ export default function Page() {
         <h1 className="title">中餐菜谱生成器</h1>
         <p className="subtitle">
           选择一道菜，调用 Web API 生成菜谱，并自动保存到云数据库
-          recipes_web。生成前会自动检查数据库中是否已存在该菜谱。
+          recipes_web。
         </p>
 
         <section className="card">
@@ -362,14 +317,10 @@ export default function Page() {
                 <span className="statValue">{processedCount}</span>
               </div>
               <div className="statItem">
-                <span className="statLabel">已跳过：</span>
-                <span className="statValue">{skippedCount}</span>
-              </div>
-              <div className="statItem">
                 <span className="statLabel">处理进度：</span>
                 <span className="statValue">
                   {dishRows.length > 0
-                    ? `${Math.round(((processedCount + skippedCount) / dishRows.length) * 100)}%`
+                    ? `${Math.round((processedCount / dishRows.length) * 100)}%`
                     : "0%"}
                 </span>
               </div>
@@ -399,7 +350,7 @@ export default function Page() {
                   style={{
                     width: `${
                       dishRows.length > 0
-                        ? ((processedCount + skippedCount) / dishRows.length) * 100
+                        ? (processedCount / dishRows.length) * 100
                         : 0
                     }%`,
                   }}
@@ -469,7 +420,6 @@ export default function Page() {
                                 {record.status === "processing" && "⏳"}
                                 {record.status === "success" && "✅"}
                                 {record.status === "error" && "❌"}
-                                {record.status === "skipped" && "⏭"}
                                 {record.status === "pending" && "⏸"}
                               </span>
                               <span className="statusText">{record.message}</span>
@@ -820,10 +770,6 @@ export default function Page() {
 
         .statusRow.status-error {
           background: #fff1f0;
-        }
-
-        .statusRow.status-skipped {
-          background: #f5f5f5;
         }
 
         .cuisineCell {
