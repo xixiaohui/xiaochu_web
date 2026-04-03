@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import { CUISINES, NORMALIZED_CUISINES } from "@/data/cuisines";
+import {  NORMALIZED_CUISINES ,CUISINES_CURRENT} from "@/data/cuisines";
 
 type Difficulty = "easy" | "medium" | "hard" | "简单" | "中等" | "困难";
 

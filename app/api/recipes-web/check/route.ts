@@ -1,7 +1,6 @@
 // app/api/recipes-web/check/route.ts
 import { app } from "@/lib/cloudbase";
 import { NextRequest, NextResponse } from "next/server";
-import { truncate } from "node:fs";
 
 export async function POST(request: NextRequest) {
   try {
